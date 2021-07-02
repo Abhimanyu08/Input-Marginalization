@@ -1,5 +1,5 @@
 # Input-Marginalization
-Unofficial PyTorch implementation of the paper "Interpretation of NLP models through input marginalization"
+Unofficial PyTorch implementation of the paper ["Interpretation of NLP models through input marginalization"](https://arxiv.org/abs/2010.13984)
 
 
 You can try it out in command line as follows:
