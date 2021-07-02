@@ -16,12 +16,14 @@ python calculate_score.py\
 --label 0 
 ```
 The above command will produce a matplotlib figure as shown below:
+The higher the score for a word, higher is it's importance in prediction of label. We can see below that negative assertion before the word "like" received a large score since it's absence would basically change the sentiment of sentence.
+
 ![](figures/Figure_2.png)
 
 Also true label given by you, predicted label along with the confidence and the attribution scores would be logged.
 
 
-You can use you own huggingface finetuned model on a task by tweaking the following optional arguments:
+You can interpret your own huggingface finetuned model on a task by tweaking the following optional arguments:
 
 * `--target_model`: Model you want to interpet. Default is `BertForSequenceClassification.from_pretrained("textattack/bert-base-uncased-SST-2")`
 * `--language_model`: Language model to be used in input marginalization. Default is `BertForMaskedLM.from_pretrained("bert-base-uncased")`
