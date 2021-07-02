@@ -5,7 +5,7 @@ Unofficial PyTorch implementation of the paper ["Interpretation of NLP models th
 You can try it out in command line as follows:
 First, clone the repo and install the required packages:
 ```
-git clone 
+git clone https://github.com/Abhimanyu08/Input-Marginalization.git
 pip install -r requirements.txt
 ```
 By default it interprets a [model trained on sentiment analysis task](https://huggingface.co/textattack/bert-base-uncased-SST-2) available on huggingface model hub.  
