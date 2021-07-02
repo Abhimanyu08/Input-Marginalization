@@ -22,6 +22,17 @@ class CustomDataset():
 
 
 def calculate_masked_probabilities(masked_lm: transformers.PreTrainedModel, sample: Dict, index: int) -> Tensor:
+	'''
+	Arguments:
+		masked_lm -> A language model good at MAKSED language modelling for eg. BERT
+		sample -> A Dictionary containing 'input_ids', 'attention_mask', 'token_type_ids' as keys. 
+		index -> Index of the masked token in sequence. for eg if first token is masked then index = 0
+
+	Returns:
+		A 1-D tensor of length equal to vocabulary where element in i'th index of tensor is the probability of i'th token 
+		being a good replacement for masked token   
+	
+	'''
 	
 
 	out = masked_lm(**sample)
@@ -76,6 +87,12 @@ def marginalize_single_index(inp: Dict[str, Tensor],
 			     language_model: transformers.PreTrainedModel, 
 			     target_class: int, 
 			     ) -> float:
+
+	'''
+	This function basically replaces the `index` in input with a random word in vocab and calculates 
+	how much did the change affect the original output probability. 
+	
+	'''
 	
 	inp_length = inp['input_ids'].size(-1)
 	replaced_word_id = inp['input_ids'][0, index]
@@ -87,16 +104,17 @@ def marginalize_single_index(inp: Dict[str, Tensor],
 	masked_sample = {'input_ids': input_ids, 
 			'attention_mask': inp['attention_mask'], 
 			'token_type_ids': inp['token_type_ids']
-			}                                       
-	## get the probability of "word" appearing in place of maked token
+			}
+
+	## get the probability of other tokens appearing in place of masked token
 	masked_probabilities = calculate_masked_probabilities(language_model, 
 						masked_sample, 
 						index = index, 
 						)
 
-	replaced_inputs = []
-	masked_prob_gt_thresholds = []  ##masked probabilities which are greater than thresholds
-	eligible_words = 0
+	replaced_inputs = [] ## list of all the inputs after replacing the original token with other tokens
+	masked_prob_gt_thresholds = []  ##list to collect probabilities of other tokens which are greater than thresholds
+	eligible_words = 0 ## count of tokens eligible to replace original tokens
 			
 	for word,word_id in tokenizer.vocab.items(): ## loop over each word in vocabulary
 		if '[' not in word and word_id != replaced_word_id:  ##avoid replacing by the word itself or special tokens.
@@ -107,17 +125,16 @@ def marginalize_single_index(inp: Dict[str, Tensor],
 				replacable_input_ids = inp['input_ids'].clone() ##create a new clone each time
 				replacable_input_ids[0,index] = word_id ##replace i'th word with other word in vocabulary
 				
-				assert inp['input_ids'][0,index].item() != replacable_input_ids[0,index].item()  ##make sure we didn't replace with original word 
 				replaced_inputs.append(replacable_input_ids)
 				masked_prob_gt_thresholds.append(masked_prob)
 				eligible_words += 1
 
-	if len(replaced_inputs) == 0:
+	if len(replaced_inputs) == 0: ##No other token was good enough to replace the orginal token.
 		return 1e-08
 
 	masked_prob_gt_thresholds = torch.tensor(masked_prob_gt_thresholds)
 
-	replaced_input_ids = torch.stack(replaced_inputs, dim = 0)
+	replaced_input_ids = torch.stack(replaced_inputs, dim = 0) ##right now replaced_input_ids are of shape (eligible_words,1,inp_length)
 	replaced_input_ids.squeeze_(1) 
 
 	attention_masks = inp['attention_mask'].repeat(eligible_words, 1)
@@ -164,37 +181,49 @@ def calculate_input_marginalisation(target_model: transformers.PreTrainedModel,
 		inp = tokenizer(input_sentence, return_tensors= 'pt')
 		
 	out = target_model(**inp)
-	true_class_probability = F.softmax(out.logits, dim = -1)[0,target_class].item()
+	predicted_label = torch.argmax(out.logits, dim = -1).item()
+	predicted_probs =  F.softmax(out.logits, dim = -1)
+	true_class_probability = predicted_probs[0,target_class].item()
+
+	confidence_in_predicted_label = predicted_probs[0, predicted_label].item()
 
 	seq_length = inp['input_ids'].size(-1)
 	original_sentence_tokenized = tokenizer.convert_ids_to_tokens(inp['input_ids'][0]) ## we do this to include special tokens that may have been introduced by the tokenizer
 	assert len(original_sentence_tokenized) == seq_length 
 
 	attribution_scores = {}
-	m_dict =  {}
+	m_dict = []
     
 	for i in range(seq_length): ##loop over each word token id
+		if original_sentence_tokenized[i] == '[SEP]' or original_sentence_tokenized[i] == '[CLS]':
+			continue
 		m = marginalize_single_index(inp, tokenizer, i, threshold, target_model, language_model, target_class)
-		m_dict[original_sentence_tokenized[i]] = m
+		m_dict.append((original_sentence_tokenized[i], m)) 
 
-	items = list(m_dict.items())
+
+	items,probs = tuple(zip(*m_dict))
 	indexes = list(range(len(items)))
+	##The following loop calculates marginalization scores for words by combining the scores of all the tokens in which the word was divided 
+	# for.eg word 'admirable' is broken into 'ad', '##mir', '##able' by wordpiece tokenizer. So to calculate the score for admirable we add the 
+	# scores of it's tokens and divide by number of tokens 
 
 	for index in indexes:
-		word = items[index][0]
-		prob = items[index][1]
-
+		word = items[index]
+		prob = probs[index]
+		
 		k = 0
-		for j in items[index+1:]:
-			if '##' in j[0]:
-				word += j[0].strip('#')
-				prob += j[1]
-				k+=1
-				indexes.remove(index + k)
+		for i,j in enumerate(items[index+1:]):
+			if '##' in j:
+				word += j.strip('#')
+				prob += probs[index + i + 1]
+				indexes.remove(index + i + 1)
+				k += 1
 			else:
 				break
 		prob /= (k+1)
-		attribution_scores[word] = calculate_log_odds(true_class_probability) - calculate_log_odds(prob)
-        
-	return attribution_scores, m_dict
+		## + index to prevent same words in different index to collide
+		attribution_scores[word + f'_{index}'] = calculate_log_odds(true_class_probability) - calculate_log_odds(prob)
+
+
+	return attribution_scores, m_dict,predicted_label, confidence_in_predicted_label
     
