@@ -1,5 +1,6 @@
 import argparse
 from transformers import BertTokenizer
+import transformers
 from input_marginalization import calculate_input_marginalisation
 from transformers import BertForMaskedLM, BertForSequenceClassification 
 import matplotlib.pyplot as plt
@@ -13,16 +14,29 @@ def main():
 	parser.add_argument('--label', type = int, default= 1, 
 				help = "optional label for what sentiment you think the sentence conveys, 0 of negative, 1 for positive")
 
+	parser.add_argument('--target_model', 
+				type = transformers.PreTrainedModel,
+				default= BertForSequenceClassification.from_pretrained('textattack/bert-base-uncased-SST-2'),
+				help = 'model whose predictions you want to interpret. Model class should be inherited from `transformers.PreTrainedModel`. Default = `BertForSequenceClassification.from_pretrained(\'textattack/bert-base-uncased-SST-2\')`')
+
+	parser.add_argument('--masked_language_model', 
+				type = transformers.PreTrainedModel,
+				default= BertForMaskedLM.from_pretrained('bert-base-uncased'),
+				help = "Language Model to be used to in input marginalization. Should be inherited from class `transformers.PreTrainedModel`.Default = `BertForSequenceClassification.from_pretrained(\'bert-base-uncased\')`")
+
+	parser.add_argument('--tokenizer', 
+				type = transformers.PreTrainedTokenizer,
+				default= BertTokenizer.from_pretrained('bert-base-uncased'),
+				help = "Tokenizer to use to preproces the input sentence. Should be inherited from `transformers.PreTrainedTokenizer`. Default = BertTokenizer.from_pretrained('bert-base-uncased')")
+	
+
 	args = parser.parse_args()
 
-	target_model = BertForSequenceClassification.from_pretrained('textattack/bert-base-uncased-SST-2')
-	language_model = BertForMaskedLM.from_pretrained('bert-base-uncased')
-	tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-	attribution_scores, _, predicted_label, confidence = calculate_input_marginalisation(target_model,
-							language_model,
+	attribution_scores, _, predicted_label, confidence = calculate_input_marginalisation(args.target_model,
+							args.language_model,
 							args.sent,
-							tokenizer,
+							args.tokenizer,
 							args.label)
 
 
