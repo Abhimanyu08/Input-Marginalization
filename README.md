@@ -8,8 +8,8 @@ First, clone the repo and install the required packages:
 git clone 
 pip install -r requirements.txt
 ```
-By default it interprets a [model trained on sentiment analysis task](https://huggingface.co/textattack/bert-base-uncased-SST-2) availabel on huggingface model hub.  
-To calculate attribution scores for an input sentence and a given label (1 for postive sentiment and 0 for negative)
+By default it interprets a [model trained on sentiment analysis task](https://huggingface.co/textattack/bert-base-uncased-SST-2) available on huggingface model hub.  
+To calculate attribution scores for an input sentence and a given label (1 for postive sentiment and 0 for negative):
 ```
 python calculate_score.py\ 
 --sent "I just couldn't like that movie"\
