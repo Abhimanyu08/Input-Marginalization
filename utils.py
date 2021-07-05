@@ -2,6 +2,18 @@ from typing import Union, List, Dict
 import transformers
 from datasets import load_dataset, Dataset
 
+class CustomDataset():
+	def __init__(self, input_ids, attention_masks, token_type_ids):
+		self.input_ids = input_ids
+		self.attention_masks = attention_masks
+		self.token_type_ids = token_type_ids
+
+	def __len__(self): return self.input_ids.size(0)
+	
+
+	def __getitem__(self, i): return {'input_ids': self.input_ids[i,:], 'attention_mask': self.attention_masks[i,:], 'token_type_ids': self.token_type_ids[i, :]}
+
+
 def prepare_dataset(name: str, 
 		    tokenizer: transformers.PreTrainedTokenizer,
 		    split: Union[List[str]] = ['train', 'validation'],

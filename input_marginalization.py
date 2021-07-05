@@ -134,9 +134,7 @@ def marginalize_single_index(inp: Dict[str, Tensor],
 
 	masked_prob_gt_thresholds = torch.tensor(masked_prob_gt_thresholds)
 
-	replaced_input_ids = torch.stack(replaced_inputs, dim = 0) ##right now replaced_input_ids are of shape (eligible_words,1,inp_length)
-	replaced_input_ids.squeeze_(1) 
-
+	replaced_input_ids = torch.cat(replaced_inputs, dim = 0) ##right now replaced_input_ids are of shape (eligible_words,1,inp_length)
 	attention_masks = inp['attention_mask'].repeat(eligible_words, 1)
 	token_type_ids = inp['token_type_ids'].repeat(eligible_words, 1)
 
@@ -192,6 +190,7 @@ def calculate_input_marginalisation(target_model: transformers.PreTrainedModel,
 	assert len(original_sentence_tokenized) == seq_length 
 
 	attribution_scores = {}
+	attribution_scores_compiled = {}
 	m_dict = []
     
 	for i in range(seq_length): ##loop over each word token id
@@ -199,6 +198,7 @@ def calculate_input_marginalisation(target_model: transformers.PreTrainedModel,
 			continue
 		m = marginalize_single_index(inp, tokenizer, i, threshold, target_model, language_model, target_class)
 		m_dict.append((original_sentence_tokenized[i], m)) 
+		attribution_scores[original_sentence_tokenized[i] + f'_{i}'] = calculate_log_odds(true_class_probability) - calculate_log_odds(m)
 
 
 	items,probs = tuple(zip(*m_dict))
@@ -222,8 +222,8 @@ def calculate_input_marginalisation(target_model: transformers.PreTrainedModel,
 				break
 		prob /= (k+1)
 		## + index to prevent same words in different index to collide
-		attribution_scores[word + f'_{index}'] = calculate_log_odds(true_class_probability) - calculate_log_odds(prob)
+		attribution_scores_compiled[word + f'_{index}'] = calculate_log_odds(true_class_probability) - calculate_log_odds(prob)
 
 
-	return attribution_scores, m_dict,predicted_label, confidence_in_predicted_label
+	return attribution_scores_compiled,attribution_scores, m_dict,predicted_label,confidence_in_predicted_label
     
